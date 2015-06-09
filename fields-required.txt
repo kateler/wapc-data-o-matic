@@ -1,0 +1,13 @@
+Fields required for Dashboard: 
+
+CaseID_CaseID
+Case_Details_StartDate
+Caller_Info_CallerCounty
+Caller_Info_CallerZip
+Major_Category_MajorCatDescription
+Caller_Info_CallerState_Text
+Patient_Age_Groupings_PatAgeRange_Toxicall_Text
+
+
+Humans only
+Exposure calls only

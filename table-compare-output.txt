@@ -1,0 +1,3 @@
+Has_error, Identifier, Message, Base_value, Test_value, ObjectID
+"false", "GeometryDef", "GeometryDefs are the same", " ", " ", -1
+"false", "Field", "Field properties are the same", " ", " ", -1
