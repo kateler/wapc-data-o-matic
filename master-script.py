@@ -346,7 +346,8 @@ if keepIntTables == False:
 ## 9. Update the ArcGIS Online feature service
 # note: settings for this section are in update_settings.ini
 # it requires the requests and requests-master directories
-# this section came from here: http://blogs.esri.com/esri/arcgis/2014/01/24/updating-your-hosted-feature-service-for-10-2/
+# this section came from here: https://github.com/arcpy/update-hosted-feature-service
+# instructions: http://blogs.esri.com/esri/arcgis/2014/01/24/updating-your-hosted-feature-service-for-10-2/
 
 # Copyright 2013 Esri
 # portions copyright 2015 Kate Leroux
