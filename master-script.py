@@ -4,7 +4,7 @@
 # Created under the direction of Carrie Ulvestad (culvestad@wapc.org)
 #
 # Summary:
-#    This script takes a CSV file containing new call records and
+#    This script takes an Excel file containing new call records and
 #    cleans, validates, and processes it; appends it to the existing data;
 #    and updates the ArcGIS Online feature service.
 #
@@ -37,18 +37,18 @@
 #    The rest of the script is less likely to need changes. 
 #
 
+## Introductory settings
+import time
+print "****** Start time: " + time.strftime("%c") + " ******"
+from datetime import date, datetime, timedelta
 # Add timestamp to print output
 def printLog(logString):
     print "[" + time.strftime("%X") + "] " + logString
 
-## Introductory settings
-import time
-print "****** Start time: " + time.strftime("%c") + " ******"
 printLog("Importing arcpy and setting environment...")
 import arcpy
 import sys
 import os
-from datetime import date, datetime, time, timedelta
 arcpy.SetLogHistory(True)
 arcpy.env.overwriteOutput = True
 printLog("Done.")
@@ -56,13 +56,13 @@ printLog("Done.")
 printLog("Setting variables...")
 
 # set variables: directory names
-workingDirectory = r"C:\Users\kate\Google Drive\GIS\WAPC Project\Ready for Handoff\Dashboard"
+workingDirectory = r"C:\Users\kate\Google Drive\GIS\WAPC Project\Dashboard"
 dataDirectory = workingDirectory + "\\call-data"
 gdb = workingDirectory + "\\dashboard.gdb"
 arcpy.env.workspace = gdb
 
 # set variables: file names
-inputDataFile = dataDirectory + "\\WAPC-new-data.csv"
+inputDataFile = dataDirectory + "\\Toxdata.xlsx"
 addressLocator = "counties_locator"
 compareOutput = workingDirectory + "\\table-compare-output.txt"
 
@@ -84,21 +84,19 @@ hourTableCurrent = "WAPC_this_hour"
 countyFC = "county_2010"
 
 # real table name (today)
-# monthTable = "WAPC_" + time.strftime("%Y%m")
-# for testing
-monthTable = "WAPC_201412"
+monthTable = "WAPC_" + time.strftime("%Y%m")
+# to hardcode for testing (enter whatever month you want to test)
+# monthTable = "WAPC_201501"
 
 # set variables: fields in new data table
 # note: any spaces should be replaced with underscores
 zipDataField = "Caller_Info_CallerZip"
 countyDataField = "Caller_Info_CallerCounty"
 catDataField = "Major_Category_MajorCatDescription"
-caseIDDataField = "CaseID_CaseID"
+caseIDDataField = "CaseID"
 dateDataField = "Case_Details_StartDate"
 stateDataField = "Caller_Info_CallerState_Text"
-startDateHourField = "Case_Details_StartDate_Hour"
-patAgeField = "Patient_Info_PatAge"
-siteCodeField = "Call_Information_HCFCallerSiteCode"
+patAgeField = "Patient_Age_Groupings_PatAgeRange_Toxicall_Text"
 
 # set variables: fields in county feature class
 sumCalls = "Num_Today"
@@ -106,9 +104,9 @@ countyName = "NAME10"
 
 # set variables: only used for testing
 # date format "'yyyy-mm-dd'"
-testDate = "'2014-12-02'"
+testDate = "'2015-01-01'"
 # hour format '0x' (pad with a zero for single digits)
-testHour = '19'
+testHour = '23'
 
 printLog("Done.")
 
@@ -119,7 +117,7 @@ printLog("Done.")
 def importTable():
     if os.path.isfile(inputDataFile):
         printLog("Importing " + inputDataFile + " to " + gdb + " as " + newDataTableOrig + "...")
-        arcpy.TableToTable_conversion(inputDataFile, gdb, newDataTableOrig, "")
+        arcpy.ExcelToTable_conversion(inputDataFile, gdb + "\\" + newDataTableOrig)
     else:
         printLog("Unable to find " + inputDataFile + ". Exiting.")
         sys.exit()
@@ -146,11 +144,11 @@ printLog("Successfully imported.")
 
 
 # 1c. Make sure date field is in date format
-# (data comes like this: "1/1/2014 0:15" and "12/30/2014 23:59" )
+# (data comes like this: "Jan  1 2015 01:04PM")
 dateFieldType = arcpy.ListFields(newDataTableOrig, dateDataField)[0].type
 if str(dateFieldType) != 'Date':
     printLog(dateDataField + " type is " + dateFieldType + ". Creating new date field and copying data...")
-    arcpy.ConvertTimeField_management(newDataTableOrig, dateDataField, "M/d/yyyy H:mm;1033;;", "StartDate", "DATE", "'Not Used'")
+    arcpy.ConvertTimeField_management(newDataTableOrig, dateDataField, "MMM dd yyyy hh:mmtt;1033;;", "StartDate", "DATE", "'Not Used'")
     arcpy.DeleteField_management(newDataTableOrig, dateDataField)
     arcpy.AlterField_management(newDataTableOrig, "StartDate", dateDataField, dateDataField)
     printLog("Done.")
@@ -161,9 +159,9 @@ else:
 # 1d. Only keep today's records
 printLog("Keeping only records from today...")
 # real clause (today's date)
-# dateWhereClause = dateDataField + " >= date '" + time.strftime("%Y-%m-%d") + "'"
-# clause for testing
-dateWhereClause = dateDataField + " >= date " + testDate
+dateWhereClause = dateDataField + " >= date '" + time.strftime("%Y-%m-%d") + "'"
+# use clause below to hardcode for testing
+# dateWhereClause = dateDataField + " >= date " + testDate
 arcpy.TableSelect_analysis(newDataTableOrig, newDataTableToday, dateWhereClause)
 printLog("Done.")
 
@@ -178,7 +176,7 @@ printLog("Done.")
 
 # 2b. Remove non-Washington calls and those from unknown counties
 printLog("Removing non-WA calls and those from unknown counties...")
-stateWhereClause = stateDataField + " = 'Washington' AND " + countyDataField + " NOT LIKE 'Unk%'"
+stateWhereClause = stateDataField + " = 'WA' AND " + countyDataField + " NOT LIKE 'U%'"
 arcpy.TableSelect_analysis(newDataTableToday, newDataTableWA, stateWhereClause)
 printLog("Done.")
 
@@ -207,15 +205,6 @@ def checkNumberField(table, field, correctType, correctTypeAdd, correctTypeFunc,
         print "   " + field + " is already " + correctType +" type. No need to convert."
 
 checkNumberField(newDataTableWA, zipDataField, "String", "STRING", "str", "ZipCode")
-checkNumberField(newDataTableWA, startDateHourField, "Integer", "LONG", "int", "Hour")
-checkNumberField(newDataTableWA, patAgeField, "Float", "FLOAT", "float", "PatAge")
-
-# Health care site code field name is too long for use in a SQL expression so it must be truncated first
-siteCodeFieldTrunc = siteCodeField[:31]
-arcpy.AlterField_management(newDataTableWA, siteCodeField, siteCodeFieldTrunc, siteCodeFieldTrunc)
-siteCodeField = siteCodeFieldTrunc
-checkNumberField(newDataTableWA, siteCodeField, "Integer", "LONG", "int", "SiteCode")
-
 printLog("Done.")
 
 
@@ -261,7 +250,7 @@ else:
         print ""
         sys.exit()
 
-doneInputDataFile = inputDataFile[:-4] + "_" + time.strftime("%Y%m%d_%H%M") + ".csv"
+doneInputDataFile = inputDataFile[:-5] + "_" + time.strftime("%Y%m%d_%H%M") + ".xlsx"
 os.rename(inputDataFile, doneInputDataFile)
 print "   Success. Renamed input file to " + doneInputDataFile + "."
 print "   If this script is run again on the same file, it will create duplicate records (not recommended)."
@@ -285,25 +274,23 @@ if keepPastMonths == False:
 
 
 ## 6. Create separate feature classes for today's cases and this hour's cases
-    
-# real clause (today's date)
-# todayWhereClause = dateDataField + " >= date '" + time.strftime("%Y-%m-%d") + "'"
 
+# TODAY:    
+# real clause (today's date)
+todayWhereClause = dateDataField + " >= date '" + time.strftime("%Y-%m-%d") + "'"
 # use clause below to hardcode for testing
-todayWhereClause = dateDataField + " >= date " + testDate
+# todayWhereClause = dateDataField + " >= date " + testDate
 
 arcpy.FeatureClassToFeatureClass_conversion(monthTable, gdb, dayTableCurrent, todayWhereClause)
 
-
+# THIS HOUR: 
 # real clause (uses last 60 minutes)
-# lastHour = datetime.now() - timedelta(minutes=60)
-# hourWhereClause = dateDataField + " >= date '" + datetime.strftime(lastHour, "%Y-%m-%d %H:%M:%S") + "'"
-
+lastHour = datetime.now() - timedelta(minutes=60)
+hourWhereClause = dateDataField + " >= date '" + datetime.strftime(lastHour, "%Y-%m-%d %H:%M:%S") + "'"
 # the clause below will use the current hour, in case that's needed
-# hourWhereClause = startDateHourField + " = " + time.strftime("%H")
-
+# hourWhereClause = "EXTRACT(HOUR FROM \"" + dateDataField + "\") = " + time.strftime("%H")
 # use clause below to hardcode for testing
-hourWhereClause = startDateHourField + " = " + testHour
+# hourWhereClause = "EXTRACT(HOUR FROM \"" + dateDataField + "\") >= " + testHour
 
 arcpy.FeatureClassToFeatureClass_conversion(dayTableCurrent, gdb, hourTableCurrent, hourWhereClause)
 
